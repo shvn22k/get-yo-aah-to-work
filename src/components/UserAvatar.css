@@ -1,0 +1,32 @@
+.user-avatar {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background-color: #004643;
+  color: #FAFAFA;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.user-avatar.small {
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.75rem;
+}
+
+.user-avatar.medium {
+  width: 3rem;
+  height: 3rem;
+  font-size: 1rem;
+}
+
+.user-avatar.large {
+  width: 4rem;
+  height: 4rem;
+  font-size: 1.25rem;
+}
+
