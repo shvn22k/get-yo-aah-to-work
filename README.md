@@ -24,9 +24,12 @@ npm run dev
 ## Features
 
 - Create rooms with up to 4 friends
-- Personal to-do lists per person
+- Daily to-do lists that automatically roll over uncompleted items
+- View past to-do lists by date
+- Personal to-do lists per person in each room
 - Daily check-ins and streak tracking
 - Real-time leaderboard and progress
+- Leave or delete rooms
 - Mobile-friendly design
 
 ## Contributing

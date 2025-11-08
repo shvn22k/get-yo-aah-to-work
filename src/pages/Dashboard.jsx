@@ -7,9 +7,19 @@ import './Dashboard.css'
 function Dashboard() {
   const { rooms, currentUser } = useApp()
 
+  const getUserRooms = () => {
+    if (!currentUser) return []
+    return rooms.filter(room => 
+      room.members && Array.isArray(room.members) && 
+      room.members.some(member => member.id === currentUser.id)
+    )
+  }
+
+  const userRooms = getUserRooms()
+
   const calculateTotalPoints = () => {
     let total = 0
-    rooms.forEach(room => {
+    userRooms.forEach(room => {
       const userItems = room.items.filter(item => item.userId === currentUser?.id)
       userItems.forEach(item => {
         const todayDate = new Date()
@@ -17,9 +27,17 @@ function Dashboard() {
           const checkDate = new Date(todayDate)
           checkDate.setDate(checkDate.getDate() - i)
           const dateStr = checkDate.toISOString().split('T')[0]
-          const dateCheckIns = item.checkIns[dateStr]
           
-          if (dateCheckIns && dateCheckIns[currentUser.id] === true) {
+          const completedDates = item.completedDates || {}
+          const dateCompletions = completedDates[dateStr]
+          const isCompleted = dateCompletions && dateCompletions[currentUser.id] === true
+          
+          if (!isCompleted && item.checkIns?.[dateStr]) {
+            const checkInData = item.checkIns[dateStr]
+            if (checkInData[currentUser.id] === true) {
+              total += 10
+            }
+          } else if (isCompleted) {
             total += 10
           }
         }
@@ -30,7 +48,7 @@ function Dashboard() {
 
   const calculateTotalStreak = () => {
     let maxStreak = 0
-    rooms.forEach(room => {
+    userRooms.forEach(room => {
       const userItems = room.items.filter(item => item.userId === currentUser?.id)
       userItems.forEach(item => {
         let streak = 0
@@ -40,9 +58,19 @@ function Dashboard() {
           const checkDate = new Date(todayDate)
           checkDate.setDate(checkDate.getDate() - i)
           const dateStr = checkDate.toISOString().split('T')[0]
-          const dateCheckIns = item.checkIns[dateStr]
           
-          if (dateCheckIns && dateCheckIns[currentUser.id] === true) {
+          const completedDates = item.completedDates || {}
+          const dateCompletions = completedDates[dateStr]
+          const isCompleted = dateCompletions && dateCompletions[currentUser.id] === true
+          
+          if (!isCompleted && item.checkIns?.[dateStr]) {
+            const checkInData = item.checkIns[dateStr]
+            if (checkInData[currentUser.id] === true) {
+              streak++
+            } else {
+              break
+            }
+          } else if (isCompleted) {
             streak++
           } else {
             break
@@ -83,20 +111,20 @@ function Dashboard() {
             <div className="stat-label">Best Streak</div>
           </div>
           <div className="stat-card">
-            <div className="stat-value">{rooms.length}</div>
+            <div className="stat-value">{userRooms.length}</div>
             <div className="stat-label">Rooms</div>
           </div>
         </div>
 
         <div className="dashboard-rooms">
           <h2 className="section-title">Your Rooms</h2>
-          {rooms.length === 0 ? (
+          {userRooms.length === 0 ? (
             <p className="empty-state">
               You haven't joined any rooms yet. Create or join a room to get started!
             </p>
           ) : (
             <div className="rooms-grid">
-              {rooms.map((room) => (
+              {userRooms.map((room) => (
                 <Link key={room.id} to={`/room/${room.id}`} className="room-card-link">
                   <div className="room-card">
                     <h3 className="room-card-name">{room.name}</h3>

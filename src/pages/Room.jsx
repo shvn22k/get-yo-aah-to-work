@@ -11,10 +11,30 @@ import './Room.css'
 function Room() {
   const { roomId } = useParams()
   const navigate = useNavigate()
-  const { rooms, refreshRooms, loading } = useApp()
+  const { rooms, refreshRooms, loading, leaveRoom, deleteRoom, currentUser } = useApp()
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
 
   const room = rooms.find(r => r.id.toLowerCase() === roomId.toLowerCase())
+  const isCreator = room && currentUser && room.creatorId === currentUser.id
+  const isMember = room && currentUser && room.members && Array.isArray(room.members) && room.members.some(m => m.id === currentUser.id)
+
+  const handleLeaveRoom = async () => {
+    if (window.confirm('Are you sure you want to leave this room? Your items will be removed.')) {
+      const success = await leaveRoom(roomId)
+      if (success) {
+        navigate('/')
+      }
+    }
+  }
+
+  const handleDeleteRoom = async () => {
+    if (window.confirm('Are you sure you want to delete this room? This action cannot be undone.')) {
+      const success = await deleteRoom(roomId)
+      if (success) {
+        navigate('/')
+      }
+    }
+  }
 
   useEffect(() => {
     if (rooms.length === 0 && loading) {
@@ -22,8 +42,12 @@ function Room() {
     }
     if (rooms.length > 0 && !room) {
       navigate('/')
+      return
     }
-  }, [rooms, room, navigate, loading])
+    if (room && currentUser && (!isMember)) {
+      navigate('/')
+    }
+  }, [rooms, room, navigate, loading, currentUser, isMember])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -66,7 +90,21 @@ function Room() {
             </div>
           </div>
         </div>
-        <h1 className="room-title">{room.name}</h1>
+        <div className="room-title-section">
+          <h1 className="room-title">{room.name}</h1>
+          <div className="room-actions">
+            {isMember && !isCreator && (
+              <button className="leave-room-button" onClick={handleLeaveRoom}>
+                Leave Room
+              </button>
+            )}
+            {isCreator && (
+              <button className="delete-room-button" onClick={handleDeleteRoom}>
+                Delete Room
+              </button>
+            )}
+          </div>
+        </div>
         <div className="room-code-section">
           <span className="room-code-label">Room Code:</span>
           <span className="room-code">{room.id}</span>

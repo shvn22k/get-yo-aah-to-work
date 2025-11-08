@@ -89,28 +89,51 @@ export function AppProvider({ children }) {
 
     if (supabase) {
       try {
+        const roomToInsert = { ...newRoom }
+        delete roomToInsert.creatorId
+        
         const { data, error } = await supabase
           .from('rooms')
-          .insert([newRoom])
+          .insert([roomToInsert])
           .select()
           .single()
 
         if (error) {
           console.error('Error creating room:', error)
-          const updatedRooms = [...rooms, newRoom]
+          console.error('Error details:', JSON.stringify(error, null, 2))
+          const updatedRooms = [...rooms, { ...newRoom, creatorId: user.id }]
           setRooms(updatedRooms)
           saveToLocalStorage(updatedRooms)
+          return roomId
         } else {
-          setRooms([...rooms, data])
+          const roomWithCreator = { ...data, creatorId: user.id }
+          
+          if (user?.id) {
+            try {
+              await supabase
+                .from('rooms')
+                .update({ creatorId: user.id })
+                .eq('id', roomId)
+            } catch (updateErr) {
+              
+            }
+          }
+          
+          const updatedRooms = [...rooms, roomWithCreator]
+          setRooms(updatedRooms)
+          saveToLocalStorage(updatedRooms)
+          
+          return roomId
         }
       } catch (err) {
         console.error('Error creating room:', err)
-        const updatedRooms = [...rooms, newRoom]
+        const updatedRooms = [...rooms, { ...newRoom, creatorId: user.id }]
         setRooms(updatedRooms)
         saveToLocalStorage(updatedRooms)
+        return roomId
       }
     } else {
-      const updatedRooms = [...rooms, newRoom]
+      const updatedRooms = [...rooms, { ...newRoom, creatorId: user.id }]
       setRooms(updatedRooms)
       saveToLocalStorage(updatedRooms)
     }
@@ -136,7 +159,6 @@ export function AppProvider({ children }) {
           .single()
 
         if (error || !data) {
-          console.log('Room not found in database. Available rooms:', rooms.map(r => r.id))
           return false
         }
         room = data
@@ -148,7 +170,6 @@ export function AppProvider({ children }) {
     }
 
     if (!room) {
-      console.log('Room not found. Available rooms:', rooms.map(r => r.id))
       return false
     }
 
@@ -207,12 +228,14 @@ export function AppProvider({ children }) {
     return rooms.find(r => r.id.toLowerCase() === roomId.toLowerCase())
   }
 
-  const addItem = async (roomId, itemText, userId) => {
+  const addItem = async (roomId, itemText, userId, date) => {
+    const today = date || new Date().toISOString().split('T')[0]
     const newItem = {
       id: Date.now().toString(),
       text: itemText,
       userId: userId,
-      checkIns: {},
+      firstDate: today,
+      completedDates: {},
       createdAt: new Date().toISOString()
     }
 
@@ -259,17 +282,18 @@ export function AppProvider({ children }) {
     const item = room.items.find(i => i.id === itemId)
     if (!item) return
 
-    const updatedCheckIns = {
-      ...item.checkIns,
-      [date]: {
-        ...item.checkIns[date],
+    const dateKey = date || new Date().toISOString().split('T')[0]
+    const updatedCompletedDates = {
+      ...(item.completedDates || {}),
+      [dateKey]: {
+        ...(item.completedDates?.[dateKey] || {}),
         [userId]: completed
       }
     }
 
     const updatedItem = {
       ...item,
-      checkIns: updatedCheckIns
+      completedDates: updatedCompletedDates
     }
 
     const updatedRoom = {
@@ -379,6 +403,94 @@ export function AppProvider({ children }) {
     }
   }
 
+  const leaveRoom = async (roomId) => {
+    if (!user) return false
+
+    const room = rooms.find(r => r.id.toLowerCase() === roomId.toLowerCase())
+    if (!room) return false
+
+    const memberIndex = room.members.findIndex(m => m.id === user.id)
+    if (memberIndex === -1) return false
+
+    const updatedMembers = room.members.filter(m => m.id !== user.id)
+    const updatedItems = room.items.filter(item => item.userId !== user.id)
+
+    const updatedRoom = {
+      ...room,
+      members: updatedMembers,
+      items: updatedItems
+    }
+
+    if (supabase) {
+      try {
+        const { error } = await supabase
+          .from('rooms')
+          .update({ members: updatedMembers, items: updatedItems })
+          .eq('id', roomId)
+
+        if (error) {
+          console.error('Error updating room:', error)
+          const updatedRooms = rooms.map(r => r.id.toLowerCase() === roomId.toLowerCase() ? updatedRoom : r)
+          setRooms(updatedRooms)
+          saveToLocalStorage(updatedRooms)
+        } else {
+          setRooms(rooms.map(r => r.id.toLowerCase() === roomId.toLowerCase() ? updatedRoom : r))
+        }
+      } catch (err) {
+        console.error('Error updating room:', err)
+        const updatedRooms = rooms.map(r => r.id.toLowerCase() === roomId.toLowerCase() ? updatedRoom : r)
+        setRooms(updatedRooms)
+        saveToLocalStorage(updatedRooms)
+      }
+    } else {
+      const updatedRooms = rooms.map(r => r.id.toLowerCase() === roomId.toLowerCase() ? updatedRoom : r)
+      setRooms(updatedRooms)
+      saveToLocalStorage(updatedRooms)
+    }
+
+    return true
+  }
+
+  const deleteRoom = async (roomId) => {
+    if (!user) return false
+
+    const room = rooms.find(r => r.id.toLowerCase() === roomId.toLowerCase())
+    if (!room) return false
+
+    if (room.creatorId !== user.id) {
+      return false
+    }
+
+    if (supabase) {
+      try {
+        const { error } = await supabase
+          .from('rooms')
+          .delete()
+          .eq('id', roomId)
+
+        if (error) {
+          console.error('Error deleting room:', error)
+          const updatedRooms = rooms.filter(r => r.id.toLowerCase() !== roomId.toLowerCase())
+          setRooms(updatedRooms)
+          saveToLocalStorage(updatedRooms)
+        } else {
+          setRooms(rooms.filter(r => r.id.toLowerCase() !== roomId.toLowerCase()))
+        }
+      } catch (err) {
+        console.error('Error deleting room:', err)
+        const updatedRooms = rooms.filter(r => r.id.toLowerCase() !== roomId.toLowerCase())
+        setRooms(updatedRooms)
+        saveToLocalStorage(updatedRooms)
+      }
+    } else {
+      const updatedRooms = rooms.filter(r => r.id.toLowerCase() !== roomId.toLowerCase())
+      setRooms(updatedRooms)
+      saveToLocalStorage(updatedRooms)
+    }
+
+    return true
+  }
+
   const getCurrentUser = () => {
     if (!user) return null
     return {
@@ -389,24 +501,30 @@ export function AppProvider({ children }) {
   }
 
   useEffect(() => {
-    if (supabase && rooms.length > 0) {
-      const subscription = supabase
-        .channel('rooms-changes')
-        .on('postgres_changes', 
-          { event: '*', schema: 'public', table: 'rooms' },
-          (payload) => {
-            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-              loadRooms()
-            }
-          }
-        )
-        .subscribe()
+    if (!supabase) return
 
-      return () => {
-        subscription.unsubscribe()
-      }
+    const channel = supabase
+      .channel('rooms-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'rooms' },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            setTimeout(() => {
+              refreshRooms()
+            }, 1000)
+          } else if (payload.eventType === 'UPDATE') {
+            setTimeout(() => {
+              refreshRooms()
+            }, 500)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
     }
-  }, [rooms.length])
+  }, [])
 
   const value = {
     rooms,
@@ -414,6 +532,8 @@ export function AppProvider({ children }) {
     currentUser: getCurrentUser(),
     createRoom,
     joinRoom,
+    leaveRoom,
+    deleteRoom,
     getRoom,
     addItem,
     checkIn,

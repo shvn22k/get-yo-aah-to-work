@@ -59,16 +59,71 @@
   color: #FAFAFA;
 }
 
+.room-title-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
 .room-title {
   font-size: 2.5rem;
   font-weight: 600;
-  margin-bottom: 1rem;
   letter-spacing: -0.02em;
+  flex: 1;
+  margin: 0;
+}
+
+.room-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.leave-room-button,
+.delete-room-button {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  border: 2px solid #004643;
+  background-color: transparent;
+  color: #004643;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.leave-room-button:hover {
+  background-color: #004643;
+  color: #FAFAFA;
+}
+
+.delete-room-button {
+  background-color: #004643;
+  color: #FAFAFA;
+}
+
+.delete-room-button:hover {
+  opacity: 0.9;
 }
 
 @media (max-width: 768px) {
   .room-title {
     font-size: 1.75rem;
+  }
+
+  .room-title-section {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .room-actions {
+    width: 100%;
+  }
+
+  .leave-room-button,
+  .delete-room-button {
+    flex: 1;
   }
 }
 

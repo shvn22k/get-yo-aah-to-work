@@ -13,15 +13,50 @@ function PersonItems({ member, roomId, selectedDate, today }) {
   const room = rooms.find(r => r.id.toLowerCase() === roomId.toLowerCase())
   if (!room) return null
 
-  const userItems = (room.items && Array.isArray(room.items)) 
+  const getPreviousDate = (dateStr) => {
+    const date = new Date(dateStr)
+    date.setDate(date.getDate() - 1)
+    return date.toISOString().split('T')[0]
+  }
+
+  const isItemVisibleOnDate = (item, viewDate) => {
+    const itemFirstDate = item.firstDate || item.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0]
+    const firstDateStr = itemFirstDate.split('T')[0]
+    
+    if (firstDateStr > viewDate) return false
+    
+    if (firstDateStr === viewDate) return true
+    
+    const prevDate = getPreviousDate(viewDate)
+    const completedDates = item.completedDates || (item.checkIns ? {} : {})
+    
+    if (item.checkIns && !item.completedDates) {
+      Object.keys(item.checkIns).forEach(date => {
+        if (item.checkIns[date] && item.checkIns[date][member.id] === true) {
+          if (!completedDates[date]) completedDates[date] = {}
+          completedDates[date][member.id] = true
+        }
+      })
+    }
+    
+    const prevDateCompletions = completedDates[prevDate] || {}
+    const wasCompletedPrevDay = prevDateCompletions[member.id] === true
+    
+    return !wasCompletedPrevDay
+  }
+
+  const allUserItems = (room.items && Array.isArray(room.items)) 
     ? room.items.filter(item => item.userId === member.id)
     : []
+  
+  const userItems = allUserItems.filter(item => isItemVisibleOnDate(item, selectedDate))
   const isCurrentUser = currentUser && member.id === currentUser.id
 
   const handleAddItem = async (e) => {
     e.preventDefault()
     if (newItemText.trim() && currentUser && isCurrentUser) {
-      await addItem(roomId, newItemText.trim(), member.id)
+      const today = new Date().toISOString().split('T')[0]
+      await addItem(roomId, newItemText.trim(), member.id, today)
       setNewItemText('')
       setShowAddForm(false)
     }
@@ -55,9 +90,15 @@ function PersonItems({ member, roomId, selectedDate, today }) {
   }
 
   const getCheckInStatus = (item) => {
-    const dateCheckIns = item.checkIns[selectedDate]
-    if (!dateCheckIns) return false
-    return dateCheckIns[member.id] === true
+    if (item.completedDates?.[selectedDate]) {
+      return item.completedDates[selectedDate][member.id] === true
+    }
+    
+    if (item.checkIns?.[selectedDate]) {
+      return item.checkIns[selectedDate][member.id] === true
+    }
+    
+    return false
   }
 
   const calculateStreak = (item) => {
@@ -68,9 +109,9 @@ function PersonItems({ member, roomId, selectedDate, today }) {
       const checkDate = new Date(todayDate)
       checkDate.setDate(checkDate.getDate() - i)
       const dateStr = checkDate.toISOString().split('T')[0]
-      const dateCheckIns = item.checkIns[dateStr]
+      const dateCompletions = item.completedDates?.[dateStr]
       
-      if (dateCheckIns && dateCheckIns[member.id] === true) {
+      if (dateCompletions && dateCompletions[member.id] === true) {
         streak++
       } else {
         break
@@ -92,7 +133,7 @@ function PersonItems({ member, roomId, selectedDate, today }) {
         </div>
       </div>
 
-      {isCurrentUser && !showAddForm && (
+      {isCurrentUser && !showAddForm && selectedDate === today && (
         <button
           className="add-item-button-small"
           onClick={() => setShowAddForm(true)}
@@ -101,7 +142,7 @@ function PersonItems({ member, roomId, selectedDate, today }) {
         </button>
       )}
 
-      {isCurrentUser && showAddForm && (
+      {isCurrentUser && showAddForm && selectedDate === today && (
         <form className="add-item-form-small" onSubmit={handleAddItem}>
           <input
             type="text"
@@ -194,7 +235,7 @@ function PersonItems({ member, roomId, selectedDate, today }) {
                 </div>
 
                 <div className="item-checkin-person">
-                  {selectedDate === today && isCurrentUser ? (
+                  {selectedDate <= today && isCurrentUser ? (
                     <button
                       className={`checkin-button-person ${isChecked ? 'checked' : ''}`}
                       onClick={() => handleCheckIn(item.id, !isChecked)}
