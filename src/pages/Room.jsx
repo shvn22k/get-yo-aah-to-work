@@ -11,8 +11,29 @@ import './Room.css'
 function Room() {
   const { roomId } = useParams()
   const navigate = useNavigate()
-  const { rooms, refreshRooms, loading, leaveRoom, deleteRoom, currentUser } = useApp()
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const { rooms, refreshRooms, loading, leaveRoom, deleteRoom, updateRoomName, currentUser } = useApp()
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editNameValue, setEditNameValue] = useState('')
+  
+  const getToday = () => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  
+  const [selectedDate, setSelectedDate] = useState(() => getToday())
+  
+  useEffect(() => {
+    const today = getToday()
+    setSelectedDate(today)
+  }, [roomId])
+  
+  useEffect(() => {
+    const today = getToday()
+    setSelectedDate(today)
+  }, [])
 
   const room = rooms.find(r => r.id.toLowerCase() === roomId.toLowerCase())
   const roomCreatorId = room?.creatorId || room?.creatorid
@@ -73,7 +94,7 @@ function Room() {
     room.items = []
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = getToday()
 
   return (
     <div className="room">
@@ -92,7 +113,62 @@ function Room() {
           </div>
         </div>
         <div className="room-title-section">
-          <h1 className="room-title">{room.name}</h1>
+          {isEditingName && isCreator ? (
+            <form
+              className="room-name-edit-form"
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (editNameValue.trim() && editNameValue.trim() !== room.name) {
+                  await updateRoomName(roomId, editNameValue.trim())
+                }
+                setIsEditingName(false)
+                setEditNameValue('')
+              }}
+            >
+              <input
+                type="text"
+                value={editNameValue}
+                onChange={(e) => setEditNameValue(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    if (editNameValue.trim() && editNameValue.trim() !== room.name) {
+                      await updateRoomName(roomId, editNameValue.trim())
+                    }
+                    setIsEditingName(false)
+                    setEditNameValue('')
+                  }
+                  if (e.key === 'Escape') {
+                    setIsEditingName(false)
+                    setEditNameValue('')
+                  }
+                }}
+                onBlur={async () => {
+                  if (editNameValue.trim() && editNameValue.trim() !== room.name) {
+                    await updateRoomName(roomId, editNameValue.trim())
+                  }
+                  setIsEditingName(false)
+                  setEditNameValue('')
+                }}
+                className="room-name-input"
+                autoFocus
+              />
+            </form>
+          ) : (
+            <h1
+              className="room-title"
+              onClick={() => {
+                if (isCreator) {
+                  setEditNameValue(room.name)
+                  setIsEditingName(true)
+                }
+              }}
+              style={isCreator ? { cursor: 'pointer' } : {}}
+              title={isCreator ? 'Click to edit room name' : ''}
+            >
+              {room.name}
+            </h1>
+          )}
           <div className="room-actions">
             {isMember && !isCreator && (
               <button className="leave-room-button" onClick={handleLeaveRoom}>
@@ -100,9 +176,11 @@ function Room() {
               </button>
             )}
             {isCreator && (
-              <button className="delete-room-button" onClick={handleDeleteRoom}>
-                Delete Room
-              </button>
+              <>
+                <button className="delete-room-button" onClick={handleDeleteRoom}>
+                  Delete Room
+                </button>
+              </>
             )}
           </div>
         </div>

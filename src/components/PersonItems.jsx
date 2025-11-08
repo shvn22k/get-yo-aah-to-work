@@ -3,12 +3,23 @@ import { useApp } from '../context/AppContext'
 import UserAvatar from './UserAvatar'
 import './PersonItems.css'
 
-function PersonItems({ member, roomId, selectedDate, today }) {
+function PersonItems({ member, roomId, selectedDate, today: todayProp }) {
   const { rooms, addItem, checkIn, deleteItem, updateItem, currentUser } = useApp()
   const [newItemText, setNewItemText] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingItemId, setEditingItemId] = useState(null)
   const [editText, setEditText] = useState('')
+
+  const getToday = () => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  
+  const today = getToday()
+  const isToday = selectedDate === today
 
   const room = rooms.find(r => r.id.toLowerCase() === roomId.toLowerCase())
   if (!room) return null
@@ -30,7 +41,6 @@ function PersonItems({ member, roomId, selectedDate, today }) {
       
       if (firstDateStr === viewDate) return true
       
-      const prevDate = getPreviousDate(viewDate)
       let completedDates = {}
       
       if (item.completedDates && typeof item.completedDates === 'object' && item.completedDates !== null) {
@@ -73,13 +83,25 @@ function PersonItems({ member, roomId, selectedDate, today }) {
         }
       }
       
-      const prevDateCompletions = (completedDates && typeof completedDates === 'object' && completedDates !== null && completedDates[prevDate]) 
-        ? completedDates[prevDate] 
-        : {}
+      const checkDate = new Date(firstDateStr)
+      const viewDateObj = new Date(viewDate)
       
-      const wasCompletedPrevDay = prevDateCompletions && typeof prevDateCompletions === 'object' && prevDateCompletions !== null && prevDateCompletions[member.id] === true
+      while (checkDate < viewDateObj) {
+        const checkDateStr = checkDate.toISOString().split('T')[0]
+        const dateCompletions = (completedDates && typeof completedDates === 'object' && completedDates !== null && completedDates[checkDateStr]) 
+          ? completedDates[checkDateStr] 
+          : {}
+        
+        const wasCompletedOnThisDate = dateCompletions && typeof dateCompletions === 'object' && dateCompletions !== null && dateCompletions[member.id] === true
+        
+        if (wasCompletedOnThisDate) {
+          return false
+        }
+        
+        checkDate.setDate(checkDate.getDate() + 1)
+      }
       
-      return !wasCompletedPrevDay
+      return true
     } catch (err) {
       console.error('Error in isItemVisibleOnDate:', err, item)
       return false
@@ -125,8 +147,7 @@ function PersonItems({ member, roomId, selectedDate, today }) {
 
   const handleAddItem = async (e) => {
     e.preventDefault()
-    if (newItemText.trim() && currentUser && isCurrentUser) {
-      const today = new Date().toISOString().split('T')[0]
+    if (newItemText.trim() && currentUser && isCurrentUser && isToday) {
       await addItem(roomId, newItemText.trim(), member.id, today)
       setNewItemText('')
       setShowAddForm(false)
@@ -134,26 +155,26 @@ function PersonItems({ member, roomId, selectedDate, today }) {
   }
 
   const handleCheckIn = async (itemId, completed) => {
-    if (isCurrentUser) {
-      await checkIn(roomId, itemId, member.id, selectedDate, completed)
+    if (isCurrentUser && isToday) {
+      await checkIn(roomId, itemId, member.id, today, completed)
     }
   }
 
   const handleDelete = async (itemId) => {
-    if (window.confirm('Are you sure you want to delete this item?') && isCurrentUser) {
+    if (window.confirm('Are you sure you want to delete this item?') && isCurrentUser && isToday) {
       await deleteItem(roomId, itemId)
     }
   }
 
   const handleEdit = (item) => {
-    if (isCurrentUser) {
+    if (isCurrentUser && isToday) {
       setEditingItemId(item.id)
       setEditText(item.text)
     }
   }
 
   const handleSaveEdit = async (itemId) => {
-    if (editText.trim() && isCurrentUser) {
+    if (editText.trim() && isCurrentUser && isToday) {
       await updateItem(roomId, itemId, editText.trim())
       setEditingItemId(null)
       setEditText('')
@@ -186,23 +207,40 @@ function PersonItems({ member, roomId, selectedDate, today }) {
 
   const calculateStreak = (item) => {
     let streak = 0
-    const todayDate = new Date()
+    const now = new Date()
+    
+    const formatDate = (date) => {
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
     
     for (let i = 0; i < 365; i++) {
-      const checkDate = new Date(todayDate)
+      const checkDate = new Date(now)
       checkDate.setDate(checkDate.getDate() - i)
-      const dateStr = checkDate.toISOString().split('T')[0]
-      const dateCompletions = item.completedDates?.[dateStr]
+      const dateStr = formatDate(checkDate)
       
-      if (dateCompletions && typeof dateCompletions === 'object' && dateCompletions[member.id] === true) {
+      let wasCompleted = false
+      
+      if (item.completedDates && typeof item.completedDates === 'object' && item.completedDates !== null) {
+        const dateCompletions = item.completedDates[dateStr]
+        if (dateCompletions && typeof dateCompletions === 'object' && dateCompletions[member.id] === true) {
+          wasCompleted = true
+        }
+      }
+      
+      if (!wasCompleted && item.checkIns && typeof item.checkIns === 'object' && item.checkIns !== null) {
+        const checkInData = item.checkIns[dateStr]
+        if (checkInData && typeof checkInData === 'object' && checkInData[member.id] === true) {
+          wasCompleted = true
+        }
+      }
+      
+      if (wasCompleted) {
         streak++
       } else {
-        const checkInData = item.checkIns?.[dateStr]
-        if (checkInData && typeof checkInData === 'object' && checkInData[member.id] === true) {
-          streak++
-        } else {
-          break
-        }
+        break
       }
     }
     
@@ -221,7 +259,7 @@ function PersonItems({ member, roomId, selectedDate, today }) {
         </div>
       </div>
 
-      {isCurrentUser && !showAddForm && selectedDate === today && (
+      {isCurrentUser && !showAddForm && isToday && (
         <button
           className="add-item-button-small"
           onClick={() => setShowAddForm(true)}
@@ -230,7 +268,7 @@ function PersonItems({ member, roomId, selectedDate, today }) {
         </button>
       )}
 
-      {isCurrentUser && showAddForm && selectedDate === today && (
+      {isCurrentUser && showAddForm && isToday && (
         <form className="add-item-form-small" onSubmit={handleAddItem}>
           <input
             type="text"
@@ -305,12 +343,12 @@ function PersonItems({ member, roomId, selectedDate, today }) {
                   ) : (
                     <p
                       className="item-text-person"
-                      onDoubleClick={() => isCurrentUser && handleEdit(item)}
+                      onDoubleClick={() => isCurrentUser && isToday && handleEdit(item)}
                     >
                       {item.text}
                     </p>
                   )}
-                  {isCurrentUser && !isEditing && (
+                  {isCurrentUser && !isEditing && isToday && (
                     <div className="item-actions">
                       <button
                         className="delete-item-button-small"
@@ -323,7 +361,7 @@ function PersonItems({ member, roomId, selectedDate, today }) {
                 </div>
 
                 <div className="item-checkin-person">
-                  {selectedDate <= today && isCurrentUser ? (
+                  {isToday && isCurrentUser ? (
                     <button
                       className={`checkin-button-person ${isChecked ? 'checked' : ''}`}
                       onClick={() => handleCheckIn(item.id, !isChecked)}

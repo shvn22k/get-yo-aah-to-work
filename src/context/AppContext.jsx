@@ -463,6 +463,52 @@ export function AppProvider({ children }) {
     return true
   }
 
+  const updateRoomName = async (roomId, newName) => {
+    if (!user) return false
+
+    const room = rooms.find(r => r.id.toLowerCase() === roomId.toLowerCase())
+    if (!room) return false
+
+    const roomCreatorId = room.creatorId || room.creatorid
+    if (roomCreatorId !== user.id) {
+      return false
+    }
+
+    const updatedRoom = {
+      ...room,
+      name: newName.trim()
+    }
+
+    if (supabase) {
+      try {
+        const { error } = await supabase
+          .from('rooms')
+          .update({ name: newName.trim() })
+          .eq('id', roomId)
+
+        if (error) {
+          console.error('Error updating room name:', error)
+          const updatedRooms = rooms.map(r => r.id.toLowerCase() === roomId.toLowerCase() ? updatedRoom : r)
+          setRooms(updatedRooms)
+          saveToLocalStorage(updatedRooms)
+        } else {
+          setRooms(rooms.map(r => r.id.toLowerCase() === roomId.toLowerCase() ? updatedRoom : r))
+        }
+      } catch (err) {
+        console.error('Error updating room name:', err)
+        const updatedRooms = rooms.map(r => r.id.toLowerCase() === roomId.toLowerCase() ? updatedRoom : r)
+        setRooms(updatedRooms)
+        saveToLocalStorage(updatedRooms)
+      }
+    } else {
+      const updatedRooms = rooms.map(r => r.id.toLowerCase() === roomId.toLowerCase() ? updatedRoom : r)
+      setRooms(updatedRooms)
+      saveToLocalStorage(updatedRooms)
+    }
+
+    return true
+  }
+
   const deleteRoom = async (roomId) => {
     if (!user) return false
 
@@ -564,6 +610,7 @@ export function AppProvider({ children }) {
     joinRoom,
     leaveRoom,
     deleteRoom,
+    updateRoomName,
     getRoom,
     addItem,
     checkIn,

@@ -19,25 +19,43 @@ function Dashboard() {
 
   const calculateTotalPoints = () => {
     let total = 0
+    
+    const formatDate = (date) => {
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+    
     userRooms.forEach(room => {
       const userItems = room.items.filter(item => item.userId === currentUser?.id)
       userItems.forEach(item => {
-        const todayDate = new Date()
+        const now = new Date()
+        const completedDates = item.completedDates || {}
+        const checkIns = item.checkIns || {}
+        
         for (let i = 0; i < 30; i++) {
-          const checkDate = new Date(todayDate)
+          const checkDate = new Date(now)
           checkDate.setDate(checkDate.getDate() - i)
-          const dateStr = checkDate.toISOString().split('T')[0]
+          const dateStr = formatDate(checkDate)
           
-          const completedDates = item.completedDates || {}
-          const dateCompletions = completedDates[dateStr]
-          const isCompleted = dateCompletions && dateCompletions[currentUser.id] === true
+          let wasCompleted = false
           
-          if (!isCompleted && item.checkIns?.[dateStr]) {
-            const checkInData = item.checkIns[dateStr]
-            if (checkInData[currentUser.id] === true) {
-              total += 10
+          if (completedDates && typeof completedDates === 'object' && completedDates !== null) {
+            const dateCompletions = completedDates[dateStr]
+            if (dateCompletions && typeof dateCompletions === 'object' && dateCompletions[currentUser.id] === true) {
+              wasCompleted = true
             }
-          } else if (isCompleted) {
+          }
+          
+          if (!wasCompleted && checkIns && typeof checkIns === 'object' && checkIns !== null) {
+            const dateCheckIns = checkIns[dateStr]
+            if (dateCheckIns && typeof dateCheckIns === 'object' && dateCheckIns[currentUser.id] === true) {
+              wasCompleted = true
+            }
+          }
+          
+          if (wasCompleted) {
             total += 10
           }
         }

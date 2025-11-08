@@ -76,27 +76,42 @@ function ProgressTracker({ room, selectedDate }) {
     let points = 0
     const userItems = (room.items && Array.isArray(room.items)) ? room.items.filter(item => item && item.userId === userId) : []
     
+    const formatDate = (date) => {
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+    
     userItems.forEach(item => {
       if (!item) return
       
-      const todayDate = new Date()
+      const now = new Date()
       const completedDates = item.completedDates || {}
       const checkIns = item.checkIns || {}
       
       for (let i = 0; i < 30; i++) {
-        const checkDate = new Date(todayDate)
+        const checkDate = new Date(now)
         checkDate.setDate(checkDate.getDate() - i)
-        const dateStr = checkDate.toISOString().split('T')[0]
+        const dateStr = formatDate(checkDate)
         
-        const dateCompletions = completedDates[dateStr]
-        const isCompleted = dateCompletions && typeof dateCompletions === 'object' && dateCompletions[userId] === true
+        let wasCompleted = false
         
-        if (!isCompleted && checkIns && typeof checkIns === 'object') {
+        if (completedDates && typeof completedDates === 'object' && completedDates !== null) {
+          const dateCompletions = completedDates[dateStr]
+          if (dateCompletions && typeof dateCompletions === 'object' && dateCompletions[userId] === true) {
+            wasCompleted = true
+          }
+        }
+        
+        if (!wasCompleted && checkIns && typeof checkIns === 'object' && checkIns !== null) {
           const dateCheckIns = checkIns[dateStr]
           if (dateCheckIns && typeof dateCheckIns === 'object' && dateCheckIns[userId] === true) {
-            points += 10
+            wasCompleted = true
           }
-        } else if (isCompleted) {
+        }
+        
+        if (wasCompleted) {
           points += 10
         }
       }
