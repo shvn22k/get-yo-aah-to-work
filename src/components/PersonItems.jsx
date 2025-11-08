@@ -20,37 +20,69 @@ function PersonItems({ member, roomId, selectedDate, today }) {
   }
 
   const isItemVisibleOnDate = (item, viewDate) => {
-    const itemFirstDate = item.firstDate || item.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0]
-    const firstDateStr = itemFirstDate.split('T')[0]
+    if (!item || !viewDate) return false
     
-    if (firstDateStr > viewDate) return false
-    
-    if (firstDateStr === viewDate) return true
-    
-    const prevDate = getPreviousDate(viewDate)
-    const completedDates = item.completedDates || (item.checkIns ? {} : {})
-    
-    if (item.checkIns && !item.completedDates) {
-      Object.keys(item.checkIns).forEach(date => {
-        const checkInData = item.checkIns[date]
-        if (checkInData && typeof checkInData === 'object' && checkInData[member.id] === true) {
-          if (!completedDates[date]) completedDates[date] = {}
-          completedDates[date][member.id] = true
+    try {
+      const itemFirstDate = item.firstDate || item.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0]
+      const firstDateStr = itemFirstDate?.split('T')[0]
+      
+      if (!firstDateStr || firstDateStr > viewDate) return false
+      
+      if (firstDateStr === viewDate) return true
+      
+      const prevDate = getPreviousDate(viewDate)
+      let completedDates = {}
+      
+      if (item.completedDates && typeof item.completedDates === 'object' && item.completedDates !== null) {
+        completedDates = { ...item.completedDates }
+      }
+      
+      if (item.checkIns && typeof item.checkIns === 'object' && item.checkIns !== null && !Array.isArray(item.checkIns)) {
+        try {
+          const checkInsKeys = Object.keys(item.checkIns)
+          if (checkInsKeys && checkInsKeys.length > 0) {
+            checkInsKeys.forEach(date => {
+              if (!date || typeof date !== 'string') return
+              try {
+                const checkInData = item.checkIns && item.checkIns[date]
+                if (checkInData && typeof checkInData === 'object' && checkInData !== null && !Array.isArray(checkInData) && checkInData[member.id] === true) {
+                  if (!completedDates[date]) completedDates[date] = {}
+                  completedDates[date][member.id] = true
+                }
+              } catch (err) {
+                console.error('Error processing checkIn for date:', date, err)
+              }
+            })
+          }
+        } catch (err) {
+          console.error('Error processing checkIns:', err, item.checkIns)
         }
-      })
+      }
+      
+      const prevDateCompletions = (completedDates && typeof completedDates === 'object' && completedDates !== null && completedDates[prevDate]) 
+        ? completedDates[prevDate] 
+        : {}
+      
+      const wasCompletedPrevDay = prevDateCompletions && typeof prevDateCompletions === 'object' && prevDateCompletions !== null && prevDateCompletions[member.id] === true
+      
+      return !wasCompletedPrevDay
+    } catch (err) {
+      console.error('Error in isItemVisibleOnDate:', err, item)
+      return false
     }
-    
-    const prevDateCompletions = completedDates[prevDate] || {}
-    const wasCompletedPrevDay = prevDateCompletions[member.id] === true
-    
-    return !wasCompletedPrevDay
   }
 
   const allUserItems = (room.items && Array.isArray(room.items)) 
-    ? room.items.filter(item => item.userId === member.id)
+    ? room.items.filter(item => item && item.userId === member.id)
     : []
   
-  const userItems = allUserItems.filter(item => isItemVisibleOnDate(item, selectedDate))
+  const userItems = allUserItems.filter(item => {
+    if (!item) return false
+    if (!item.completedDates && !item.checkIns) {
+      item.completedDates = {}
+    }
+    return isItemVisibleOnDate(item, selectedDate)
+  })
   const isCurrentUser = currentUser && member.id === currentUser.id
 
   const handleAddItem = async (e) => {
