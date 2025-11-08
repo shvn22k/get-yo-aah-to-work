@@ -7,17 +7,29 @@ function Leaderboard({ room, selectedDate }) {
 
   const calculateUserScore = (userId) => {
     let score = 0
-    const userItems = room.items.filter(item => item.userId === userId)
+    const userItems = (room.items && Array.isArray(room.items)) ? room.items.filter(item => item && item.userId === userId) : []
     
     userItems.forEach(item => {
+      if (!item) return
+      
       const todayDate = new Date()
+      const completedDates = item.completedDates || {}
+      const checkIns = item.checkIns || {}
+      
       for (let i = 0; i < 30; i++) {
         const checkDate = new Date(todayDate)
         checkDate.setDate(checkDate.getDate() - i)
         const dateStr = checkDate.toISOString().split('T')[0]
-        const dateCheckIns = item.checkIns[dateStr]
         
-        if (dateCheckIns && dateCheckIns[userId] === true) {
+        const dateCompletions = completedDates[dateStr]
+        const isCompleted = dateCompletions && typeof dateCompletions === 'object' && dateCompletions[userId] === true
+        
+        if (!isCompleted && checkIns && typeof checkIns === 'object') {
+          const dateCheckIns = checkIns[dateStr]
+          if (dateCheckIns && typeof dateCheckIns === 'object' && dateCheckIns[userId] === true) {
+            score += 10
+          }
+        } else if (isCompleted) {
           score += 10
         }
       }
@@ -25,16 +37,29 @@ function Leaderboard({ room, selectedDate }) {
     
     let streak = 0
     userItems.forEach(item => {
+      if (!item) return
+      
       let itemStreak = 0
       const todayDate = new Date()
+      const completedDates = item.completedDates || {}
+      const checkIns = item.checkIns || {}
       
       for (let i = 0; i < 365; i++) {
         const checkDate = new Date(todayDate)
         checkDate.setDate(checkDate.getDate() - i)
         const dateStr = checkDate.toISOString().split('T')[0]
-        const dateCheckIns = item.checkIns[dateStr]
         
-        if (dateCheckIns && dateCheckIns[userId] === true) {
+        const dateCompletions = completedDates[dateStr]
+        const isCompleted = dateCompletions && typeof dateCompletions === 'object' && dateCompletions[userId] === true
+        
+        if (!isCompleted && checkIns && typeof checkIns === 'object') {
+          const dateCheckIns = checkIns[dateStr]
+          if (dateCheckIns && typeof dateCheckIns === 'object' && dateCheckIns[userId] === true) {
+            itemStreak++
+          } else {
+            break
+          }
+        } else if (isCompleted) {
           itemStreak++
         } else {
           break

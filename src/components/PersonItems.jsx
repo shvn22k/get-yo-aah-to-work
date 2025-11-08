@@ -39,18 +39,32 @@ function PersonItems({ member, roomId, selectedDate, today }) {
       
       if (item.checkIns && typeof item.checkIns === 'object' && item.checkIns !== null && !Array.isArray(item.checkIns)) {
         try {
-          const checkInsKeys = Object.keys(item.checkIns)
-          if (checkInsKeys && checkInsKeys.length > 0) {
+          const checkInsKeys = Object.keys(item.checkIns || {})
+          if (checkInsKeys && Array.isArray(checkInsKeys) && checkInsKeys.length > 0) {
             checkInsKeys.forEach(date => {
               if (!date || typeof date !== 'string') return
               try {
-                const checkInData = item.checkIns && item.checkIns[date]
-                if (checkInData && typeof checkInData === 'object' && checkInData !== null && !Array.isArray(checkInData) && checkInData[member.id] === true) {
-                  if (!completedDates[date]) completedDates[date] = {}
-                  completedDates[date][member.id] = true
+                if (!item || !item.checkIns || typeof item.checkIns !== 'object' || item.checkIns === null || Array.isArray(item.checkIns)) {
+                  return
+                }
+                const checkInsObj = item.checkIns
+                if (!checkInsObj || typeof checkInsObj !== 'object' || checkInsObj === null) {
+                  return
+                }
+                const checkInData = checkInsObj[date]
+                if (checkInData && typeof checkInData === 'object' && checkInData !== null && !Array.isArray(checkInData)) {
+                  const memberCheckIn = checkInData[member.id]
+                  if (memberCheckIn === true) {
+                    if (!completedDates[date]) {
+                      completedDates[date] = {}
+                    }
+                    if (typeof completedDates[date] === 'object' && completedDates[date] !== null) {
+                      completedDates[date][member.id] = true
+                    }
+                  }
                 }
               } catch (err) {
-                console.error('Error processing checkIn for date:', date, err)
+                console.error('Error processing checkIn for date:', date, err, item)
               }
             })
           }
@@ -77,11 +91,35 @@ function PersonItems({ member, roomId, selectedDate, today }) {
     : []
   
   const userItems = allUserItems.filter(item => {
-    if (!item) return false
-    if (!item.completedDates && !item.checkIns) {
-      item.completedDates = {}
+    if (!item || typeof item !== 'object') return false
+    
+    const safeItem = {
+      ...item,
+      completedDates: item.completedDates && typeof item.completedDates === 'object' && !Array.isArray(item.completedDates) 
+        ? item.completedDates 
+        : {},
+      checkIns: item.checkIns && typeof item.checkIns === 'object' && !Array.isArray(item.checkIns)
+        ? item.checkIns
+        : {}
     }
-    return isItemVisibleOnDate(item, selectedDate)
+    
+    try {
+      return isItemVisibleOnDate(safeItem, selectedDate)
+    } catch (err) {
+      console.error('Error filtering item:', err, safeItem)
+      return false
+    }
+  }).map(item => {
+    if (!item) return item
+    return {
+      ...item,
+      completedDates: item.completedDates && typeof item.completedDates === 'object' && !Array.isArray(item.completedDates)
+        ? item.completedDates
+        : {},
+      checkIns: item.checkIns && typeof item.checkIns === 'object' && !Array.isArray(item.checkIns)
+        ? item.checkIns
+        : {}
+    }
   })
   const isCurrentUser = currentUser && member.id === currentUser.id
 
@@ -123,18 +161,24 @@ function PersonItems({ member, roomId, selectedDate, today }) {
   }
 
   const getCheckInStatus = (item) => {
-    if (item.completedDates?.[selectedDate]) {
-      const dateCompletions = item.completedDates[selectedDate]
-      if (dateCompletions && typeof dateCompletions === 'object') {
-        return dateCompletions[member.id] === true
-      }
-    }
+    if (!item) return false
     
-    if (item.checkIns?.[selectedDate]) {
-      const checkInData = item.checkIns[selectedDate]
-      if (checkInData && typeof checkInData === 'object') {
-        return checkInData[member.id] === true
+    try {
+      if (item.completedDates && typeof item.completedDates === 'object' && item.completedDates !== null && !Array.isArray(item.completedDates)) {
+        const dateCompletions = item.completedDates[selectedDate]
+        if (dateCompletions && typeof dateCompletions === 'object' && dateCompletions !== null && !Array.isArray(dateCompletions)) {
+          return dateCompletions[member.id] === true
+        }
       }
+      
+      if (item.checkIns && typeof item.checkIns === 'object' && item.checkIns !== null && !Array.isArray(item.checkIns)) {
+        const checkInData = item.checkIns[selectedDate]
+        if (checkInData && typeof checkInData === 'object' && checkInData !== null && !Array.isArray(checkInData)) {
+          return checkInData[member.id] === true
+        }
+      }
+    } catch (err) {
+      console.error('Error in getCheckInStatus:', err, item)
     }
     
     return false
