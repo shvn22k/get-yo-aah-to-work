@@ -32,7 +32,8 @@ function PersonItems({ member, roomId, selectedDate, today }) {
     
     if (item.checkIns && !item.completedDates) {
       Object.keys(item.checkIns).forEach(date => {
-        if (item.checkIns[date] && item.checkIns[date][member.id] === true) {
+        const checkInData = item.checkIns[date]
+        if (checkInData && typeof checkInData === 'object' && checkInData[member.id] === true) {
           if (!completedDates[date]) completedDates[date] = {}
           completedDates[date][member.id] = true
         }
@@ -91,11 +92,17 @@ function PersonItems({ member, roomId, selectedDate, today }) {
 
   const getCheckInStatus = (item) => {
     if (item.completedDates?.[selectedDate]) {
-      return item.completedDates[selectedDate][member.id] === true
+      const dateCompletions = item.completedDates[selectedDate]
+      if (dateCompletions && typeof dateCompletions === 'object') {
+        return dateCompletions[member.id] === true
+      }
     }
     
     if (item.checkIns?.[selectedDate]) {
-      return item.checkIns[selectedDate][member.id] === true
+      const checkInData = item.checkIns[selectedDate]
+      if (checkInData && typeof checkInData === 'object') {
+        return checkInData[member.id] === true
+      }
     }
     
     return false
@@ -111,10 +118,15 @@ function PersonItems({ member, roomId, selectedDate, today }) {
       const dateStr = checkDate.toISOString().split('T')[0]
       const dateCompletions = item.completedDates?.[dateStr]
       
-      if (dateCompletions && dateCompletions[member.id] === true) {
+      if (dateCompletions && typeof dateCompletions === 'object' && dateCompletions[member.id] === true) {
         streak++
       } else {
-        break
+        const checkInData = item.checkIns?.[dateStr]
+        if (checkInData && typeof checkInData === 'object' && checkInData[member.id] === true) {
+          streak++
+        } else {
+          break
+        }
       }
     }
     
