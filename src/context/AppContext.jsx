@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { supabase } from '../lib/supabase'
 
@@ -12,6 +12,7 @@ export function AppProvider({ children }) {
   const { user } = useUser()
   const [rooms, setRooms] = useState([])
   const [loading, setLoading] = useState(true)
+  const recentlyCreatedRooms = useRef(new Set())
 
   useEffect(() => {
     loadRooms()
@@ -110,18 +111,42 @@ export function AppProvider({ children }) {
           
           if (user?.id) {
             try {
-              await supabase
+              const { error: updateError } = await supabase
                 .from('rooms')
                 .update({ creatorId: user.id })
                 .eq('id', roomId)
-            } catch (updateErr) {
               
+              if (updateError) {
+                console.error('Error updating creatorId:', updateError)
+              }
+            } catch (updateErr) {
+              console.error('Error updating creatorId:', updateErr)
             }
           }
+          
+          recentlyCreatedRooms.current.add(roomId)
+          setTimeout(() => {
+            recentlyCreatedRooms.current.delete(roomId)
+          }, 5000)
           
           const updatedRooms = [...rooms, roomWithCreator]
           setRooms(updatedRooms)
           saveToLocalStorage(updatedRooms)
+          
+          setTimeout(async () => {
+            const { data: verifyData, error: verifyError } = await supabase
+              .from('rooms')
+              .select('*')
+              .eq('id', roomId)
+              .single()
+            
+            if (verifyError || !verifyData) {
+              console.error('Room was deleted after creation!', verifyError)
+              if (verifyError?.code === 'PGRST116') {
+                console.error('Room not found in database - may have been deleted')
+              }
+            }
+          }, 2000)
           
           return roomId
         }
@@ -503,11 +528,19 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (!supabase) return
 
+    let isSubscribed = false
     const channel = supabase
       .channel('rooms-changes')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'rooms' },
         (payload) => {
+          if (!isSubscribed) return
+          
+          const roomId = payload.new?.id || payload.old?.id
+          if (roomId && recentlyCreatedRooms.current.has(roomId)) {
+            return
+          }
+          
           if (payload.eventType === 'DELETE') {
             setTimeout(() => {
               refreshRooms()
@@ -516,12 +549,21 @@ export function AppProvider({ children }) {
             setTimeout(() => {
               refreshRooms()
             }, 500)
+          } else if (payload.eventType === 'INSERT') {
+            setTimeout(() => {
+              refreshRooms()
+            }, 500)
           }
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          isSubscribed = true
+        }
+      })
 
     return () => {
+      isSubscribed = false
       supabase.removeChannel(channel)
     }
   }, [])
