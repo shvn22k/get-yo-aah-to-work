@@ -15,7 +15,8 @@ function Room() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
 
   const room = rooms.find(r => r.id.toLowerCase() === roomId.toLowerCase())
-  const isCreator = room && currentUser && room.creatorId === currentUser.id
+  const roomCreatorId = room?.creatorId || room?.creatorid
+  const isCreator = room && currentUser && roomCreatorId === currentUser.id
   const isMember = room && currentUser && room.members && Array.isArray(room.members) && room.members.some(m => m.id === currentUser.id)
 
   const handleLeaveRoom = async () => {

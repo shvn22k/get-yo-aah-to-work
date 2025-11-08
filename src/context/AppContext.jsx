@@ -90,8 +90,10 @@ export function AppProvider({ children }) {
 
     if (supabase) {
       try {
-        const roomToInsert = { ...newRoom }
-        delete roomToInsert.creatorId
+        const roomToInsert = { 
+          ...newRoom,
+          creatorid: user.id
+        }
         
         const { data, error } = await supabase
           .from('rooms')
@@ -107,22 +109,7 @@ export function AppProvider({ children }) {
           saveToLocalStorage(updatedRooms)
           return roomId
         } else {
-          const roomWithCreator = { ...data, creatorId: user.id }
-          
-          if (user?.id) {
-            try {
-              const { error: updateError } = await supabase
-                .from('rooms')
-                .update({ creatorId: user.id })
-                .eq('id', roomId)
-              
-              if (updateError) {
-                console.error('Error updating creatorId:', updateError)
-              }
-            } catch (updateErr) {
-              console.error('Error updating creatorId:', updateErr)
-            }
-          }
+          const roomWithCreator = { ...data, creatorId: data.creatorid || data.creatorId || user.id }
           
           recentlyCreatedRooms.current.add(roomId)
           setTimeout(() => {
@@ -482,7 +469,8 @@ export function AppProvider({ children }) {
     const room = rooms.find(r => r.id.toLowerCase() === roomId.toLowerCase())
     if (!room) return false
 
-    if (room.creatorId !== user.id) {
+    const roomCreatorId = room.creatorId || room.creatorid
+    if (roomCreatorId !== user.id) {
       return false
     }
 
